@@ -1,4 +1,5 @@
 http://lib.csdn.net/article/computervison/50556
+https://blog.csdn.net/maxiao1204/article/details/65653781
 
 过去几年，深度学习在解决诸如视觉识别、语音识别和自然语言处理等很多问题方面都表现出色。在不同类型的神经网络当中，卷积神经网络是得到最深入研究的。早期由于缺乏训练数据和计算能力，要在不产生过拟合的情况下训练高性能卷积神经网络是很困难的。标记数据和近来GPU的发展，使得卷积神经网络研究涌现并取得一流结果。
 
@@ -26,7 +27,13 @@ http://lib.csdn.net/article/computervison/50556
 
 #### （6）数据增强，随机地从256´256的原始图像中截取224´224大小的区域（以及水平翻转的镜像），相当于增加了(256-224)2´2=2048倍的数据量。如果没有数据增强，仅靠原始的数据量，参数众多的CNN会陷入过拟合中，使用了数据增强后可以大大减轻过拟合，提升泛化能力。进行预测时，则是取图片的四个角加中间共5个位置，并进行左右翻转，一共获得10张图片，对他们进行预测并对10次结果求均值。同时，AlexNet论文中提到了会对图像的RGB数据进行PCA处理，并对主成分做一个标准差为0.1的高斯扰动，增加一些噪声，这个Trick可以让错误率再下降1%。
 
-AlexNet 取得成功后，研究人员又提出了其他的完善方法，其中最著名的要数 ZFNet [7], VGGNet [8], GoogleNet [9] 和 ResNet [10] 这四种。从结构看，CNN 发展的一个方向就是层数变得更多，ILSVRC 2015 冠军 ResNet 是 AlexNet 的20 多倍，是 VGGNet 的8 倍多。
+#### 具体内容见第二个链接
+
+### 3 Overfeat
+
+#### 2013 年的 12 月，纽约大学的 Yann LeCun 实验室提出了 AlexNet 的衍生——Overfeat（参见：OverFeat: Integrated Recognition, Localization and Detection using Convolutional Networks）。这篇文章也提出了学习边界框（learning bounding box），并导致之后出现了很多研究这同一主题的论文。
+
+（具体内容见第二个链接）AlexNet 取得成功后，研究人员又提出了其他的完善方法，其中最著名的要数 ZFNet [7], VGGNet [8], GoogleNet [9] 和 ResNet [10] 这四种。从结构看，CNN 发展的一个方向就是层数变得更多，ILSVRC 2015 冠军 ResNet 是 AlexNet 的20 多倍，是 VGGNet 的8 倍多。
 
 
 
