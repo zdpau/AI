@@ -1,4 +1,4 @@
-https://docs.google.com/viewer?a=v&pid=sites&srcid=ZGVmYXVsdGRvbWFpbnxtbHN5c25pcHMyMDE2fGd4OjRhZDllZDA5MmZhZWRmZGY
+https://arxiv.org/pdf/1611.04581.pdf
 （
 为了缩短深度学习上的训练时间，提出了一种分布式处理算法gossiping SGD。在传统的同步方法中，容易出现故障（一个节点计算失败等），
 而在异步方法中，由于使用参数服务器，参数变为竞争状态，训练会变慢。所以提案手法是，通过用八卦聚合算法代替同步方法的all-reduce collective操作，
