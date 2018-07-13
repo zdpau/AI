@@ -1,0 +1,111 @@
+https://hackernoon.com/gradient-descent-aynk-7cbe95a778da
+
+## 1. The Point of GD
+1，梯度下降需要成本函数，We need this cost function because we want to minimize it. Minimizing any function means finding the deepest valley in that function. 我们需要这个成本函数，因为我们想要最小化它。最小化任何功能意味着找到该功能中最深的山谷。
+
+2，the cost function is used to monitor the error in predictions of an ML model. (成本函数用于监视ML模型预测中的错误。) So minimizing this, basically means getting to the lowest error value possible or increasing the accuracy of the model.(因此，最小化这一点，基本上意味着可以达到可能的最低误差值或提高模型的准确性。) In short, We increase the accuracy by iterating over a training data set while tweaking the parameters(the weights and biases) of our model.简而言之，我们通过迭代训练数据集来提高精度，同时调整模型的参数（权重和偏差）。
+
+**So, the whole point of GD is to minimize the cost function.因此，GD的重点是最小化成本函数。**
+
+3，The meat of the algorithm is the process of getting to the lowest error value. Analogically this can be seen as, walking down into a valley, trying to find gold(the lowest error value).算法的核心是获得最低错误值的过程。类似地，这可以被视为，走进山谷，试图找到黄金（最低的错误值）。While we’re at this, I’m sure you’ve wondered how we would find the deepest valley in a function with many valleys, if you can only see the valleys around you? 虽然我们在这里，但我确定你想知道如果你只能看到你周围的山谷，我们如何在一个有很多山谷的功能中找到最深的山谷？ Moving forward, to find the lowest error(deepest valley) in the cost function(with respect to one weight), we need to tweak the parameters of the model. 继续前进，为了找到成本函数中的最低误差（最深谷）（相对于一个权重），我们需要调整模型的参数。How much do we tweak them though? Enter Calculus. Using calculus, we know that the slope of a function is the derivative of the function with respect to a value. This slope always points to the nearest valley! 我们调整了多少呢？输入微积分。使用微积分，我们知道函数的斜率是函数相对于值的导数。这个斜坡总是指向最近的山谷！
+
+4，Here(in the picture), we can see the graph of the cost function(named “Error” with symbol “J”) against just one weight.在这里（图中），我们可以看到成本函数的图形（名称为“Error”，符号为“J”），仅对一个权重。Now if we calculate the slope(let’s call this dJ/dw) of the cost function with respect to this one weight, we get the direction we need to move towards, in order to reach the local minima(nearest deepest valley).现在，如果我们计算相对于这一个权重的成本函数的斜率（让我们称之为dJ / dw），我们得到我们需要移动的方向，以便达到局部最小值（最近的最深谷）。For now, let’s just imagine our model having just one weight.现在，让我们假设我们的模型只有一个权重。
+
+![avatar](https://cdn-images-1.medium.com/max/1600/0*qtiSV8B2__XR52XP.jpg)
+
+>* Note: When we iterate over all the training data, we keep adding dJ/dw for each weight. Since, the cost keeps changing depending on the training example, dJ/dw also keeps changing. 注意：当我们迭代所有训练数据时，我们会继续为每个重量添加dJ / dw。因为，根据训练样例，成本不断变化，dJ / dw也在不断变化。We then divide the accumulated value by the no. of training examples to get the average. We then use that average(of each weight) to tweak each weight.然后我们将累计值除以获得平均值的训练样例。然后我们使用该平均值（每个重量）来调整每个重量。
+
+>* Also Note: In essence, the cost function is just for monitoring the error with each training example while the derivative of the cost function with respect to one weight is where we need to shift that one weight in order to minimize the error for that training example. You can create models without even using the cost function. But you will have to use the derivative with respect to each weight (dJ/dw).另请注意：本质上，成本函数仅用于监控每个训练示例的误差，而成本函数相对于一个权重的导数是我们需要移动一个权重的位置，以便最小化该训练示例的误差。 您甚至无需使用成本函数即可创建模型。 但是你必须对每个重量（dJ / dw）使用导数。
+
+5，Now that we have found the direction we need to nudge the weight, we need to find how much to nudge the weight. Here, we use the Learning Rate. The Learning Rate is called a hyper-parameter. A hyper-parameter is a value required by your model which we really have very little idea about. These values can be learned mostly by trial and error. There is no, one-fits-all for hyper-parameters. This Learning Rate can be thought of as a, “step in the right direction,” where the direction comes from dJ/dw.
+现在我们已经找到了推动权重所需的方向，我们需要找到轻微推动体重的程度。 在这里，我们使用学习率。 学习率被称为超参数。 超参数是您的模型所需的值，我们真的很少知道。 这些值可以通过反复试验来学习。 超参数没有一刀切。 这种学习率可以被认为是“朝着正确方向迈出的一步”，其方向来自dJ / dw。
+
+6，This was the cost function plotted against just one weight. In a real model, we do all the above, for all the weights, while iterating over all the training examples. In even a relatively small ML model, you will have more than just 1 or 2 weights. This makes things way harder to visualize, since now, your graph will be of dimensions which our brains can’t even imagine.
+这是仅针对一个重量绘制的成本函数。 在实际模型中，我们对所有权重执行以上所有操作，同时迭代所有训练示例。 即使是相对较小的ML模型，您也只能拥有1或2个重量。 这使得事物更难以可视化，因为现在，您的图形将具有我们的大脑甚至无法想象的维度。
+
+## 1.1. More on Gradients
+1，With a cost function, GD also requires a gradient which is dJ/dw(the derivative of the cost function with respect to a single weight, done for all the weights). This dJ/dw depends on your choice of the cost function. There are many types of cost functions(as written above as well). The most common is the Mean-Squared Error cost function.
+使用成本函数，GD还需要一个dJ / dw的梯度（相对于单个权重的成本函数的导数，对所有权重进行）。 这个dJ / dw取决于您选择的成本函数。 有许多类型的成本函数（如上所述）。 最常见的是均方误差成本函数。
+
+![avator](https://cdn-images-1.medium.com/max/1600/0*DQ4rZdXEYzIf0iS_.png)
+
+2，The derivative of this with respect to any weight is(this formula shows the gradient computation for linear regression):这个关于任何权重的导数是（这个公式显示了线性回归的梯度计算）：
+![avator](https://cdn-images-1.medium.com/max/1600/0*XFK9C3go0VaWR_f4.png)
+
+3, This is all the math in GD. Looking at this, you can tell that inherently, GD doesn’t involve a lot of math. The only math it involves out of the box is multiplication and division which we will get to. This means, that your choice of a cost function, will affect your calculation of the gradient of each weight.这是GD中的所有数学。 看看这个，你可以说，GD本身并不涉及很多数学。 它开箱即用的唯一数学是乘法和除法，我们将得到它。 这意味着，您选择的成本函数会影响您计算每个重量的梯度。
+## 1.2. The Learning Rate.
+1, The problem for most models however, arises with the learning rate. Let’s look at the update expression for each weight(j ranges from 0 to the amount of weight and Theta-j is the jth weight in a weight vector, k ranges from 0 to the amount biases where B-k is the kth bias in a bias vector). Here, alpha is the learning rate. From this, we can tell that, we’re computing dJ/dTheta-j(the gradient of weight Theta-j) and then we’re taking a step of size alpha in that direction. Hence, we’re moving down the gradient. To update the bias, replace Theta-j with B-k.
+然而，大多数模型的问题在于学习率。 让我们看一下每个权重的更新表达式（j的范围从0到权重量，Theta-j是权重向量中的第j个权重，k的范围从0到偏差量，其中Bk是偏差向量中的第k个偏差）。 在这里，alpha是学习率。 由此，我们可以看出，我们正在计算dJ / dTheta-j（权重Theta-j的梯度），然后我们在这个方向上迈出了尺寸alpha的一步。 因此，我们正在向下移动渐变。 要更新偏差，请将Theta-j替换为B-k。
+![avator](https://cdn-images-1.medium.com/max/1600/0*8yzvd7QZLn5T1XWg.jpg)
+
+If this step size, alpha, is too large, we will overshoot the minimum, that is, we won’t even be able land at the minimum. If alpha is too small, we will take too many iterations to get to the minimum. So, alpha needs to be just right. This confuses many people and honestly, it confused me for a while as well.如果这个步长α太大，我们就会超过最小值，也就是说，我们甚至无法降落。 如果alpha太小，我们将花费太多迭代来达到最小值。 所以，alpha需要恰到好处。 这让很多人感到困惑，说实话，它也困扰了我一段时间。
+![avator](https://cdn-images-1.medium.com/max/1600/0*rBQI7uBhBKE8KT-X.png)
+## 1.3. Summary
+Well, that’s it. That’s all there is to GD. Let’s summarize everything in pseudo-code:这就是GD的全部内容。让我们用伪代码总结一切：
+>* Note: The weights here are in vectors. In larger models they will probably be matrices. This example only has one bias but in larger models, these will probably be vectors. 注意：这里的权重是向量。在较大的模型中，它们可能是矩阵。这个例子只有一个偏差，但在较大的模型中，这些可能是矢量。
+
+1,Calculate the gradient of the cost function for the i-th training example with respect to every weight and bias. Now you have a vector full of gradients for each weight and a variable containing the gradient of the bias.针对每个权重和偏差计算第i个训练示例的成本函数的梯度。 现在你有一个满载每个权重的渐变的向量和一个包含偏差梯度的变量。
+
+2,Add the gradients of the weights calculated to a separate accumulator vector which after you’re done iterating over each training example, should contain the sum of the gradients of each weight over the several iterations.将计算出的权重的梯度添加到单独的累加器向量中，在完成对每个训练示例的迭代之后，应该包含多次迭代中每个权重的梯度之和。
+
+3,Like the weights, add the gradient of the bias to an accumulator variable.与权重一样，将偏差的梯度添加到累加器变量。
+
+Now, AFTER iterating over all the training examples perform the following: 现在，AFTER迭代所有训练示例后执行以下操作：
+
+1,Divide the accumulator variables of the weights and the bias by the number of training examples. This will give us the average gradients for all weights and the average gradient for the bias. We will call these the updated accumulators(UAs)
+将权重的累加器变量和偏差除以训练样本的数量。这将为我们提供所有权重的平均梯度和偏差的平均梯度。我们将这些称为更新的累加器（UAs)
+
+2,Then, using the formula shown below, update all weights and the bias. In place of dJ/dTheta-j you will use the UA(updated accumulator) for the weights and the UA for the bias. Doing the same for the bias.
+然后，使用下面显示的公式，更新所有权重和偏差。代替dJ / dTheta-j，您将使用UA（更新累加器）作为权重，使用UA作为偏差。为偏见做同样的事情。
+![avator](https://cdn-images-1.medium.com/max/1600/0*8yzvd7QZLn5T1XWg.jpg)
+This was just one GD iteration.
+
+Repeat this process from start to finish for some number of iterations. Which means for 1 iteration of GD, you iterate over all the training examples, compute the gradients, then update the weights and biases. You then do this for some number of GD iterations.
+从开始到结束重复此过程一定次数的迭代。 这意味着对于GD的1次迭代，您迭代所有训练示例，计算渐变，然后更新权重和偏差。 然后，您可以为一些GD迭代执行此操作。
+## 2. Different Types of GDs
+There are 3 variations of GD: GD有3种变体：
+
+1, Mini — Batch — GD: Here, instead of iterating over all training examples and with each iteration only performing computations on a single training example, we process n training examples at once. This is a good choice for very large data sets.
+Mini - Batch - GD：这里，我们不是迭代所有训练样例，而是每次迭代只对单个训练样例进行计算，我们一次处理n个训练样例。对于非常大的数据集，这是一个很好的选择。
+
+2, Stochastic — GD: In this, instead of using and looping over each training example, we use JUST USE ONE. There are a few things to note about this:在此，我们使用JUST USE ONE而不是使用和循环每个训练示例。 关于此，有几点需要注意：
+>* With every GD iteration, you need to shuffle the training set and pick a random training example from that.
+对于每次GD迭代，您需要对训练集进行随机播放并从中选择一个随机训练示例。
+>* Since, you’re only using one training example, your path to the local minima will be very noisey like a drunk man after having one too many drinks.因为，你只使用了一个训练的例子，你喝过多的饮料，就像醉酒的男人一样，通往当地极小的道路会非常吵闹。
+
+3, Batch — GD: This is what we just discussed in the above sections. Looping over every training example, the vanilla(basic) GD. 批处理 - GD：这就是我们刚才在上面的章节中讨论的内容。循环每个训练例子，香草（基本）GD。 
+
+Here’s a picture comparing the 3 getting to the local minima:这是一张比较3到达当地最小值的图片：
+![avator](https://cdn-images-1.medium.com/max/1600/0*sFYJwQCCjOnXpSoD.png)
+
+## 3. Code Implementation
+In essence, using Batch GD, this is what your training block of code would look like(in Python). 从本质上讲，使用Batch GD，这就是你的训练代码块（在Python中）。
+```
+def train(X, y, W, B, alpha, max_iters):
+    '''
+    Performs GD on all training examples,
+    X: Training data set,
+    y: Labels for training data,
+    W: Weights vector,
+    B: Bias variable,
+    alpha: The learning rate,
+    max_iters: Maximum GD iterations.
+    '''
+    dW = 0 # Weights gradient accumulator
+    dB = 0 # Bias gradient accumulator
+    m = X.shape[0] # No. of training examples
+    for i in range(max_iters):
+        dW = 0 # Reseting the accumulators
+        dB = 0
+        for j in range(m):
+            # 1. Iterate over all examples,
+            # 2. Compute gradients of the weights and biases in w_grad and b_grad,
+            # 3. Update dW by adding w_grad and dB by adding b_grad,
+         W = W - alpha * (dW / m) # Update the weights
+         B = B - alpha * (dB / m) # Update the bias
+    
+    return W, B # Return the updated weights and bias.
+```
+If this still seems a little confusing, here’s a little Neural Network I made which learns to predict the result of performing XOR on 2 inputs. 如果这仍然有点令人困惑，这里有一个小小的神经网络我学会了预测在2个输入上执行XOR的结果。
+
+https://github.com/Frixoe/xor-neural-network/blob/master/XOR-Net-Notebook.ipynb
