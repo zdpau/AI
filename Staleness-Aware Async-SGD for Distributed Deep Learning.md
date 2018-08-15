@@ -20,3 +20,24 @@ Prior theoretical work by [Tsitsiklis et al., 1986] and [Agarwal and Duchi, 2011
 
 [Tsitsiklis et al。，1986]和[Agarwal and Duchi，2011] [Liu et al。，2013]的先前理论工作和[Liu and Wright，2015]，[Lian et al。，2015]，[ Zhang et al。，2015]分别为存在凸优化和非凸优化的陈旧梯度更新提供了随机优化算法收敛的理论保证。我们发现采用ASGD的横向扩展深度学习方法会导致训练算法的超参数（如学习速率，小批量）和分布式实现的设计选择（如同步协议，学习者数量）之间复杂的相互依赖性。 ），最终影响神经网络的准确性和运行时性能。在实践中，通过分布式培训实现良好的模型准确性需要仔细选择培训超参数，并且上面引用的大部分先前工作缺乏足够的有用见解来帮助指导此选择过程。
 
+The work presented in this paper intends to fill this void by undertaking a study of the interplay between the different design parameters encountered during distributed training of deep neural networks. In particular, we focus our attention on understanding the effect of stale gradient updates during distributed training and developing principled approaches for mitigating these effects. To this end, we introduce a variant of the ASGD algorithm in which we keep track of the staleness associated with each gradient computation and adjust the learning rate on a per-gradient basis by simply dividing the learning rate by the staleness value. The implementation of this algorithm on a CPU-based HPC cluster with fast interconnect is shown to achieve a tight bound on the gradient staleness. We experimentally demonstrate the effectiveness of the proposed staleness-dependent learning rate scheme using commonly-used image classification benchmarks: CIFAR10 and Imagenet and show that this simple, yet effective technique is necessary for achieving good model accuracy during distributed training. Further, we build on the theoretical framework of [Lian et al., 2015] and prove that the convergence rate of the staleness-aware ASGD algorithm is consistent with SGD:O(1/根号t),where T is the number of gradient update steps.
+
+本文提出的工作旨在通过研究深度神经网络分布式训练中遇到的不同设计参数之间的相互作用来填补这一空白。特别是，我们将注意力集中在了解分布式培训期间陈旧梯度更新的影响，并制定减轻这些影响的原则方法。为此，我们引入了ASGD算法的变体，其中我们跟踪与每个梯度计算相关的陈旧性，并通过简单地将学习率除以过时值来基于每个梯度调整学习率。该算法在具有快速互连的基于CPU的HPC集群上的实现被证明可以实现梯度过时的紧密限制。我们通过使用常用的图像分类基准：CIFAR10和Imagenet实验证明了所提出的与陈旧性相关的学习率方案的有效性，并表明这种简单而有效的技术对于在分布式训练期间实现良好的模型准确性是必要的。此外，我们建立在[Lian et al。，2015]的理论框架上，并证明了陈旧性感知ASGD算法的收敛速度与SGD一致：O(1/根号t),其中T是梯度更新步骤的数量。
+
+Previously, [Ho et al., 2013] presented a parameter server based distributed learning system where the staleness in parameter updates is bounded by forcing faster workers to wait for their slower counterparts. Perhaps the most closely related prior work is that of [Chan and Lane, 2014] which presented a multi-GPU system for distributed training of speech CNNs and acknowledge the need to modulate the learning rate in the presence of stale gradients. The authors proposed an exponential penalty for stale gradients and show results for up to 5 learners, without providing any theoretical guarantee of the convergence rate. However, in larger-scale distributed systems, the gradient staleness can assume values up to a few hundreds ([Dean et al., 2012]) and the exponential penalty may reduce the learning rate to an arbitrarily small value, potentially slowing down the convergence. In contrast, in this paper, we formally prove our proposed ASGD algorithm to converge as fast as SSGD. Further, our implementation achieves near-linear speedup while maintaining the optimal model accuracy. We demonstrate this on widely used image classification benchmarks.
+
+以前，[Ho et al。，2013]提出了一种基于参数服务器的分布式学习系统，其中参数更新中的陈旧性受到迫使更快的工人等待其较慢的对应物的限制。也许最密切相关的先前工作是[Chan and Lane，2014]，其提出了用于语音CNN的分布式训练的多GPU系统，并且承认在存在陈旧渐变的情况下调节学习速率的需要。作者提出了对陈旧梯度的指数惩罚，并显示多达5个学习者的结果，而没有提供任何理论上的收敛率保证。然而，在较大规模的分布式系统中，梯度过时可以假设值高达数百（[Dean et al。，2012]），指数惩罚可能会将学习率降低到任意小的值，从而可能减慢收敛速度。相比之下，在本文中，我们正式证明了我们提出的ASGD算法收敛速度与SSGD一样快。此外，我们的实现实现了接近线性的加速，同时保持了最佳的模型精度。我们在广泛使用的图像分类基准上证明了这一点。
+
+## 2 System architecture
+In this section we present an overview of our distributed deep learning system and describe the synchronization protocol design. In particular, we introduce the n-softsync protocol which enables a fine-grained control over the upper bound on the gradient staleness in the system. For a complete comparison, we also implemented the Hardsync protocol (aka SSGD) for model accuracy baseline since it generates the most accurate model (when fixing the number of training epochs), albeit at the cost of poor runtime performance.
+
+在本节中，我们将概述分布式深度学习系统并描述同步协议设计。 特别是，我们引入了n-softsync协议，该协议能够对系统中梯度过时的上限进行细粒度控制。 为了进行完整的比较，我们还为模型精度基线实现了Hardsync协议（又名SSGD），因为它生成了最准确的模型（在确定训练时期的数量时），尽管以运行时性能较差为代价。
+### 2.1 Architecture Overview
+We implement a parameter server based distributed learning system, which is a generalization of Downpour SGD in [Dean et al., 2012], to evaluate the effectiveness of our proposed staleness-dependent learning rate modulation technique. Throughout the paper, we use the following definitions:
+
+我们实现了一个基于参数服务器的分布式学习系统，它是[Dean et al。，2012]中Downpour SGD的推广，用于评估我们提出的与陈旧度相关的学习速率调制技术的有效性。 在整篇论文中，我们使用以下定义：
+
+
+
+
+
