@@ -1,4 +1,5 @@
 # Faster SGD training by minibatch persistency
+https://arxiv.org/pdf/1806.07353.pdf
 ## Abstrsact
 众所周知，对于大多数数据集来说，随机梯度下降（SGD）使用large-size minibatches通常会导致收敛速度慢和泛化能力差。 另一方面， large minibatches 具有很大的实际意义，因为它们可以更好地利用现代GPU。以前关于这个主题的文献主要集中在如何在使用large minibatches时调整主要的SGD参数（特别是学习率）。在这项工作中，我们引入了一个额外的特性，即我们称之为minibatch持久性，包括重复使用相同的minibatch进行K个连续的SGD迭代。 这里的计算猜想是一个大型的小批次包含了训练集的一个重要样本，所以可以稍微过度拟合它，而不会使泛化过分恶化。该方法旨在加速SGD收敛，并且还具有减少与内部GPU内存上的数据加载相关的开销的优势。我们在CIFAR-10上用AlexNet架构给出了计算结果，表明即使是小的持久性值（K = 2或5）也会导致显着更快的收敛，与标准的“一次性小批量”方法（K = 1）相比（或甚至更好）的推广，特别是当使用large minibatches时。吸取的教训是，小批次持久性可以成为处理大型小批次的简单而有效的方法。
 ## The idea
