@@ -1,5 +1,12 @@
 https://hackernoon.com/gradient-descent-aynk-7cbe95a778da
 
+https://www.cnblogs.com/richqian/p/4549590.html batch-GD，SGD，Mini-batch-GD，Stochastic GD， Online-GD的比较
+
+https://blog.csdn.net/tsyccnh/article/details/76064087 这是一个专栏，推导GD公式必看
+
+https://blog.csdn.net/u010402786/article/details/51188876 有几种GD的公式以及随机梯度下降代码
+
+
 ## 1. The Point of GD
 1，梯度下降需要成本函数，We need this cost function because we want to minimize it. Minimizing any function means finding the deepest valley in that function. 我们需要这个成本函数，因为我们想要最小化它。最小化任何功能意味着找到该功能中最深的山谷。
 
