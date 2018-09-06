@@ -1,5 +1,4 @@
 # AI
-## 有关ASGD、数据并行的讲解：https://blog.csdn.net/xbinworld/article/details/74781605
 ## 深度学习的各种概念：https://blog.csdn.net/bobpeter84/article/details/79136419
 ## Epoch, iteration, batch的理解：https://zhuanlan.zhihu.com/p/29409502 https://blog.csdn.net/program_developer/article/details/78597738
 ### 1，batch和batch size: 记住：batch size 和 number of batches 是不同的。(见上面专栏第二条换算关系)batchsize的正确选择是为了在内存效率和内存容量之间寻找最佳平衡。
