@@ -51,3 +51,29 @@ The problem of the equivalence of these two objectives is studied in the literat
 ## 实验
 在本节中，我们将EASGD和EAMSGD的性能与并行方法DOWNPOUR和顺序方法SGD以及它们的平均和动量变量进行比较。
 
+下面列出了所有并行比较器方法:
+
+DOWNPOUR，本文中使用的DOWNPOUR实现的伪代码包含在Supplement中。
+
+动量下降（MDOWNPOUR），其中Nesterov的动量方案应用于主人的更新（注意不清楚如何将其应用于当地工人或τ> 1的情况）。 伪代码在补充中。
+
+### Experimental setup
+对于我们的所有实验，我们使用与InfiniBand互连的GPU集群。每个节点都有4个Titan GPU处理器，每个本地工作者对应一个GPU处理器。主集中心变量在集中参数服务器上存储和更新。
+
+为了描述卷积神经网络的体系结构，我们将首先介绍一种表示法。设（c，y）表示每层输入图像的大小，其中c是颜色通道的数量，y是输入的水平和垂直尺寸。Let C denotes the fully-connected convolutional operator and let P denotes the max pooling operator, D denotes the linear operator with dropout rate equal to 0.5 and S denotes the linear operator with softmax output non-linearity.(设C表示完全连接的卷积算子，让P表示最大合并算子，D表示线性算子，其丢失率等于0.5，S表示具有softmax输出非线性的线性算子。)We use the cross-entropy loss and all inner layers use rectified linear units. (我们使用交叉熵损失，所有内层使用整流线性单元。)
+
+对于ImageNet实验，我们使用与[4]相似的方法，使用以下11层卷积神经网络（3,221）C（96,108）P（96,36）C（256,32）P（256,16）C（384），14）
+C（384,13）C（256,12）P（256,6）d（4096,1）d（4096,1）S（1000,1）。 对于CIFAR实验，我们使用与[29]相似的方法，使用以下7层卷积神经网络（3,28）C（64,24）P（64,12）C（128,8）P（128,4））C（64,2）d（256,1）S（10,1）。
+
+在我们的实验中，我们运行的所有方法都使用随机选择的相同初始参数，除了我们将CIFAR情况下的所有偏差设置为零，而ImageNet情况设置为0.1。 此参数用于初始化 the master and all the local workers.
+
+我们将l2-正则化加到损失函数F（x）。 对于ImageNet，我们使用λ= 10-5.对于CIFAR，我们使用λ= 10-4。 我们还使用样本大小为128的小批量计算随机梯度。
+
+### Experimental results
+对于本节中的所有实验，我们使用β= 0.9的EASGD，对于所有基于动量的方法，我们设置动量项δ= 0.99，最后对于MVADOWNPOUR，我们将移动速率设置为α= 0.001。我们从CIFAR数据集上的实验开始，在单个计算节点上运行p = 4个本地工作程序。对于所有方法，我们从以下集合τ= {1,4,16,64}检查了通信周期。为了进行比较，我们还报告了MSGD的性能，其表现优于SGD，ASGD和MVASGD，如补充中的图6所示。对于每种方法，我们检查了广泛的学习率（所有实验中探索的学习率总结在补编中的表1,2,3中）。CIFAR实验独立于相同的初始化运行3次，并且对于每种方法，我们报告其通过可实现的最小测试误差测量的最佳性能。从图2中的结果可以得出结论，所有基于DOWNPOUR的方法对于小τ（τ∈{1,4}）都达到了最佳性能（测试误差），并且对于τ∈{16,64}变得高度不稳定。虽然通过更快的收敛，EAMSGD明显优于所有τ值的比较器方法。它还可以找到由测试误差测量的更好质量的解决方案，这种优势对于τ∈{16,64}变得更加重要。注意，用更大的τ实现更好的测试性能的趋势也是EASGD算法的特征。
+
+接下来，我们将从集合p = {4,8,16}中为CIFAR实验探索不同数量的本地工作人员p，并且对于ImageNet实验p = {4,8}。 对于ImageNet实验，我们使用我们找到的最佳设置报告一次运行的结果。 EASGD和EAMSGD以τ= 10运行，而DOWNPOUR和MDOWNPOUR以τ= 1运行。结果如图3和图4所示。对于CIFAR实验，EASGD或EAMSGD可达到的最低测试误差随着较大而降低页。 这可以通过以下事实来解释：较大的p允许更多地探索参数空间。 在补编中，我们进一步讨论了探索和利用之间的权衡取决于学习率（第9.5节）和通信期（第9.6节）。 最后，ImageNet实验的结果也显示了EAMSGD优于竞争对手方法的优势。
+
+## Conclusion
+在本文中，我们描述了一种称为EASGD的新算法及其用于在随机设置中训练深度神经网络的变体，当计算在多个GPU上并行化时。 实验表明，与更常见的基线方法（如DOWNPOUR及其变体）相比，这种新算法可以快速实现测试误差的改善。 我们表明，我们的方法在通信限制下非常稳定和合理。 我们在循环方案中提供了异步EASGD的稳定性分析，并展示了该方法相对于ADMM的理论优势。 EASGD算法与其基于矩阵的变量EAMSGD的不同行为是有趣的，并将在未来的工作中进行研究。
+
