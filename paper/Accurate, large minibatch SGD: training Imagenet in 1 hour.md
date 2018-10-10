@@ -73,3 +73,31 @@ All other hyper-parameters (weight decay, etc.) are kept unchanged. As we will s
 **Interpretation.** We present an informal discussion of the linear scaling rule and why it may be effective. Consider a network at iteration t with weights wt, and a sequence of k minibatches Bj for 0 ≤ j < k each of size n. We compare the effect of executing k SGD iterations with small minibatches Bj and learning rate η versus a single iteration with a large minibatch ∪jBj of size kn and learning rate ηˆ.
 
 **解释。**我们提出了线性缩放规则的非正式讨论以及它可能有效的原因。 考虑具有权重wt的迭代t的网络，以及每个大小为n的0≤j<k的k个小批量Bj的序列。 我们比较了执行k SGD迭代与小型小批量Bj和学习率η相比，具有大小kn和学习率η的大型小批量∪jBj的单次迭代的效果。
+
+**这里还有一堆**
+
+**Discussion.** The above linear scaling rule was adopted by Krizhevsky [21], if not earlier. However, Krizhevsky reported a 1% increase of error when increasing the minibatch size from 128 to 1024, whereas we show how to maintain accuracy across a much broader regime of minibatch sizes. Chen et al. [5] presented a comparison of numerous distributed SGD variants, and although their work also employed the linear scaling rule, it did not establish a small minibatch baseline. Li [25] (§4.6) showed distributed ImageNet training with minibatches up to 5120 without a loss in accuracy after convergence. However, their work did not demonstrate a hyper-parameter search-free rule for adjusting the learning rate as a function of minibatch size, which is a central contribution of our work.
+
+**讨论。**如果不是更早的话，Krizhevsky [21]采用了上述线性缩放规则。然而，Krizhevsky报告说，当将小批量大小从128增加到1024时，误差增加了1％，而我们展示了如何在更广泛的小批量大小范围内保持准确性。陈等人。 [5]介绍了许多分布式SGD变体的比较，尽管他们的工作也使用了线性缩放规则，但它没有建立一个小的微型基线。 Li [25]（§4.6）展示了分布式ImageNet培训，其中包含高达5120的微型计算机，并且在收敛后没有精度损失。然而，他们的工作没有证明一个超参数无搜索规则来调整学习率作为小批量大小的函数，这是我们工作的核心贡献。
+
+In recent work, Bottou et al. [4] (§4.2) review theoretical tradeoffs of minibatching and show that with the linear scaling rule, solvers follow the same training curve as a function of number of examples seen, and suggest the learning rate should not exceed a maximum rate independent of minibatch size (which justifies warmup). Our work empirically tests these theories with unprecedented minibatch sizes.
+
+在最近的工作中，Bottou等人。 [4]（§4.2）回顾了微型化的理论权衡，并表明，利用线性缩放规则，求解器遵循相同的训练曲线作为所见例子的函数，并建议学习率不应超过独立于小批量的最大速率大小（证明热身）。我们的工作通过前所未有的小批量尺寸来验证这些理论。
+### 2.2. Warmup
+As we discussed, for large minibatches (e.g., 8k) the linear scaling rule breaks down when the network is changing rapidly, which commonly occurs in early stages of training. We find that this issue can be alleviated by a properly designed warmup [16], namely, a strategy of using less aggressive learning rates at the start of training.
+
+正如我们所讨论的，对于大型小型机（例如，8k），线性缩放规则在网络快速变化时发生故障，这通常发生在训练的早期阶段。 我们发现这个问题可以通过适当设计的预热来缓解[16]，即在训练开始时使用较低攻击性学习率的策略。
+
+**Constant warmup.** The warmup strategy presented in [16] uses a low constant learning rate for the first few epochs of training. As we will show in §5, we have found constant warmup particularly helpful for prototyping object detection and segmentation methods [9, 31, 26, 14] that fine-tune pre-trained layers together with newly initialized layers.
+In our ImageNet experiments with a large minibatch of size kn, we have tried to train with the low learning rate of η for the first 5 epochs and then return to the target learning rate of ηˆ = kη. However, given a large k, we find that this constant warmup is not sufficient to solve the optimization problem, and a transition out of the low learning rate warmup phase can cause the training error to spike. This leads us to propose the following gradual warmup.
+
+**不断的热身。** [16]中提出的预热策略在前几个训练时期使用低恒定学习率。 正如我们将在§5中展示的那样，我们发现恒定的预热特别有助于原型对象检测和分割方法[9,31,26,14]，它们将预先训练的层与新初始化的层一起微调。
+在我们使用大小为kn的大型小批量的ImageNet实验中，我们尝试在前5个时期以低学习率η进行训练，然后返回到目标学习速率η=kη。 然而，给定大k，我们发现这种恒定的预热不足以解决优化问题，并且从低学习速率预热阶段的转换可能导致训练误差尖峰。 这导致我们提出以下渐进的热身。
+
+**Gradual warmup.** We present an alternative warmup that gradually ramps up the learning rate from a small to a large value. This ramp avoids a sudden increase of the learning rate, allowing healthy convergence at the start of training. In practice, with a large minibatch of size kn, we start from a learning rate of η and increment it by a constant amount at each iteration such that it reaches ηˆ = kη after 5 epochs (results are robust to the exact duration of warmup). After the warmup, we go back to the original learning rate schedule.
+
+逐渐热身。 我们提出了另一种预热方法，逐渐提高学习率，从小到大。 该斜坡避免了学习率的突然增加，从而在训练开始时实现健康的收敛。 在实践中，对于大小为kn的大型小批量，我们从学习速率η开始并在每次迭代时将其增加一个恒定量，使得它在5个时期之后达到η=kη（结果对于预热的确切持续时间是稳健的）。 在热身之后，我们回到原来的学习率计划。
+### 2.3. Batch Normalization with Large Minibatches
+Batch Normalization (BN) [19] computes statistics along the minibatch dimension: this breaks the independence of each sample’s loss, and changes in minibatch size change the underlying definition of the loss function being optimized. In the following we will show that a commonly used ‘shortcut’, which may appear to be a practical consideration to avoid communication overhead, is actually necessary for preserving the loss function when changing minibatch size.
+
+批量标准化（BN）[19]计算沿着小批量维度的统计数据：这打破了每个样本损失的独立性，并且小批量大小的变化改变了被优化的损失函数的基础定义。 在下文中，我们将展示一个常用的“快捷方式”，这似乎是避免通信开销的实际考虑因素，实际上在更改小批量大小时保留损失函数是必要的。
