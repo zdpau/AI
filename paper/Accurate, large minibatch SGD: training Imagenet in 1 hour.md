@@ -72,13 +72,13 @@ All other hyper-parameters (weight decay, etc.) are kept unchanged. As we will s
 
 **Interpretation.** We present an informal discussion of the linear scaling rule and why it may be effective. Consider a network at iteration t with weights wt, and a sequence of k minibatches Bj for 0 ≤ j < k each of size n. We compare the effect of executing k SGD iterations with small minibatches Bj and learning rate η versus a single iteration with a large minibatch ∪jBj of size kn and learning rate ηˆ.
 
-**解释。**我们提出了线性缩放规则的非正式讨论以及它可能有效的原因。 考虑具有权重wt的迭代t的网络，以及每个大小为n的0≤j<k的k个小批量Bj的序列。 我们比较了执行k SGD迭代与小型小批量Bj和学习率η相比，具有大小kn和学习率η的大型小批量∪jBj的单次迭代的效果。
+**解释**。我们提出了线性缩放规则的非正式讨论以及它可能有效的原因。 考虑具有权重wt的迭代t的网络，以及每个大小为n的0≤j<k的k个小批量Bj的序列。 我们比较了执行k SGD迭代与小型小批量Bj和学习率η相比，具有大小kn和学习率η的大型小批量∪jBj的单次迭代的效果。
 
 **这里还有一堆**
 
 **Discussion.** The above linear scaling rule was adopted by Krizhevsky [21], if not earlier. However, Krizhevsky reported a 1% increase of error when increasing the minibatch size from 128 to 1024, whereas we show how to maintain accuracy across a much broader regime of minibatch sizes. Chen et al. [5] presented a comparison of numerous distributed SGD variants, and although their work also employed the linear scaling rule, it did not establish a small minibatch baseline. Li [25] (§4.6) showed distributed ImageNet training with minibatches up to 5120 without a loss in accuracy after convergence. However, their work did not demonstrate a hyper-parameter search-free rule for adjusting the learning rate as a function of minibatch size, which is a central contribution of our work.
 
-**讨论。**如果不是更早的话，Krizhevsky [21]采用了上述线性缩放规则。然而，Krizhevsky报告说，当将小批量大小从128增加到1024时，误差增加了1％，而我们展示了如何在更广泛的小批量大小范围内保持准确性。陈等人。 [5]介绍了许多分布式SGD变体的比较，尽管他们的工作也使用了线性缩放规则，但它没有建立一个小的微型基线。 Li [25]（§4.6）展示了分布式ImageNet培训，其中包含高达5120的微型计算机，并且在收敛后没有精度损失。然而，他们的工作没有证明一个超参数无搜索规则来调整学习率作为小批量大小的函数，这是我们工作的核心贡献。
+**讨论**。如果不是更早的话，Krizhevsky [21]采用了上述线性缩放规则。然而，Krizhevsky报告说，当将小批量大小从128增加到1024时，误差增加了1％，而我们展示了如何在更广泛的小批量大小范围内保持准确性。陈等人。 [5]介绍了许多分布式SGD变体的比较，尽管他们的工作也使用了线性缩放规则，但它没有建立一个小的微型基线。 Li [25]（§4.6）展示了分布式ImageNet培训，其中包含高达5120的微型计算机，并且在收敛后没有精度损失。然而，他们的工作没有证明一个超参数无搜索规则来调整学习率作为小批量大小的函数，这是我们工作的核心贡献。
 
 In recent work, Bottou et al. [4] (§4.2) review theoretical tradeoffs of minibatching and show that with the linear scaling rule, solvers follow the same training curve as a function of number of examples seen, and suggest the learning rate should not exceed a maximum rate independent of minibatch size (which justifies warmup). Our work empirically tests these theories with unprecedented minibatch sizes.
 
