@@ -185,10 +185,117 @@ We also note that it may be incorrect to ‘cancel k’ by setting ηˆ = η (no
 **Remark 4: Use a single random shuffling of the training data (per epoch) that is divided amongst all k workers. 备注4：使用在所有k个工作者之间划分的训练数据（每个时期）的单个随机改组。**
 
 ## 4. Communication
+In order to scale beyond the 8 GPUs in a single Big Basin server [24], gradient aggregation has to span across servers on a network. To allow for near perfect linear scaling, the aggregation must be performed in parallel with backprop. This is possible because there is no data dependency between gradients across layers. Therefore, as soon as the gradient for a layer is computed, it is aggregated across workers, while gradient computation for the next layer continues(as discussed in [5]). We give full details next.
+
+为了扩展到单个Big Basin服务器中的8个GPU [24]，梯度聚合必须跨越网络上的服务器。 为了允许接近完美的线性缩放，聚合必须与backprop并行执行。 这是可能的，因为跨层的渐变之间没有数据依赖性。 因此，一旦计算了层的梯度，它就会在工人之间聚合，而下一层的梯度计算会继续（如[5]中所述）。 我们接下来详细介绍。
+### 4.1. Gradient Aggregation
+For every gradient, aggregation is done using an allreduce operation (similar to the MPI collective operation MPI Allreduce [11]). Before allreduce starts every GPU has its locally computed gradients and after allreduce completes every GPU has the sum of all k gradients. As the number of parameters grows and compute performance of GPUs increases, it becomes harder to hide the cost of aggregation in the backprop phase. Training techniques to overcome these effects are beyond the scope of this work (e.g., quantized gradients [18], Block-Momentum SGD [6]). However, at the scale of this work, collective communication was not a bottleneck, as we were able to achieve near-linear SGD scaling by using an optimized allreduce implementation.
+
+对于每个梯度，使用allreduce操作进行聚合（类似于MPI集体操作MPI Allreduce [11]）。 在allreduce开始之前，每个GPU都有其本地计算的梯度，并且在allreduce完成之后，每个GPU都具有所有k个梯度的总和。 随着参数数量的增加和GPU的计算性能的提高，隐藏在backprop阶段的聚合成本变得更加困难。 克服这些影响的训练技术超出了这项工作的范围（例如，量化梯度[18]，Block-Momentum SGD [6]）。 然而，在这项工作的范围内，集体沟通不是瓶颈，因为我们能够通过使用优化的allreduce实现来实现接近线性的SGD缩放。
+
+Our implementation of allreduce consists of three phases for communication within and across servers: (1) buffers from the 8 GPUs within a server are summed into a single buffer for each server, (2) the results buffers are shared and summed across all servers, and finally (3) the results are broadcast onto each GPU. For the local reduction and broadcast in phases (1) and (3) we used NVIDIA Collective Communication Library (NCCL)3 for buffers of size 256KB or more and a simple implementation consisting of a number of GPU-to-host memory copies and a CPU reduction otherwise. NCCL uses GPU kernels to accelerate intraserver collectives, so this approach dedicates more time on the GPU to backprop while using the CPU resources that would otherwise have been idle to improve throughput.
+
+我们对allreduce的实现包括服务器内部和服务器之间通信的三个阶段：（1）服务器内8个GPU的缓冲区总和为每个服务器的单个缓冲区，（2）结果缓冲区在所有服务器之间共享和求和， 最后（3）将结果广播到每个GPU上。 对于分阶段（1）和（3）的本地缩减和广播，我们使用NVIDIA集体通信库（NCCL）3用于256KB或更大的缓冲区以及由许多GPU到主机内存副本和a组成的简单实现 否则CPU减少。 NCCL使用GPU内核来加速内部服务器集合，因此这种方法在GPU上花费更多时间来反向支持，同时使用原本闲置的CPU资源来提高吞吐量。
+
+For interserver allreduce, we implemented two of the best algorithms for bandwidth-limited scenarios: the recursive halving and doubling algorithm [30, 37] and the bucket algorithm (also known as the ring algorithm) [2]. For both, each server sends and receives (2 p−1/p b) bytes of data, where b is the buffer size in bytes and p is the number of servers. While the halving/doubling algorithm consists of 2 log2(p) communication steps, the ring algorithm consists of 2(p − 1) steps. This generally makes the halving/doubling algorithm faster in latency-limited scenarios(i.e., for small buffer sizes and/or large server counts). In practice, we found the halving/doubling algorithm to perform much better than the ring algorithm for buffer sizes up to a million elements (and even higher on large server counts). On 32 servers (256 GPUs), using halving/doubling led to a speedup of 3× over the ring algorithm.
+
+对于服务器间的allreduce，我们为带宽受限的情况实现了两种最佳算法：递归减半和加倍算法[30,37]和桶算法（也称为环算法）[2]。 对于两者，每个服务器发送和接收（2 p-1 / p b）个字节的数据，其中b是以字节为单位的缓冲区大小，p是服务器的数量。 虽然减半/加倍算法由2个log2（p）通信步骤组成，但环算法由2（p-1）个步骤组成。 这通常使延迟/加倍算法在延迟受限的情况下更快（即，对于小的缓冲区大小和/或大的服务器计数）。 在实践中，我们发现减半/加倍算法的性能比环算法要好得多，缓冲区大小可达一百万个元素（在大型服务器数量上甚至更高）。在32台服务器（256个GPU）上，使用减半/加倍导致环形算法的速度提高3倍。
+
+The halving/doubling algorithm consists of a reducescatter collective followed by an allgather. In the first step of reduce-scatter, servers communicate in pairs (rank 0 with 1, 2 with 3, etc.), sending and receiving for different halves of their input buffers. For example, rank 0 sends the second half of its buffer to 1 and receives the first half of the buffer from 1. A reduction over the received data is performed before proceeding to the next step, where the distance to the destination rank is doubled while the data sent and received is halved. After the reduce-scatter phase is finished, each server has a portion of the final reduced vector.
+
+减半/加倍算法包括reducecatter集合，后跟allgather。在reduce-scatter的第一步中，服务器成对通信（0级，1,2级，3级等），发送和接收输入缓冲器的不同部分。例如，等级0将其缓冲区的后半部分发送到1并从1接收缓冲区的前半部分。在继续下一步骤之前执行接收数据的减少，其中到目的地等级的距离加倍，而发送和接收的数据减半。在减少分散阶段完成之后，每个服务器具有最终减少的向量的一部分。
 
 
+This is followed by the allgather phase, which retraces the communication pattern from the reduce-scatter in reverse, this time simply concatenating portions of the final reduced vector. At each server, the portion of the buffer that was being sent in the reduce-scatter is received in the allgather, and the portion that was being received is now sent.
+
+接下来是allgather阶段，其反向地从reduce-scatter回溯通信模式，这次简单地连接最终缩减矢量的部分。在每个服务器上，在全部收集中接收在reduce-scatter中发送的缓冲区部分，现在发送正在接收的部分。
+
+To support non-power-of-two number of servers, we used the binary blocks algorithm [30]. This is a generalized version of the halving/doubling algorithm where servers are partitioned into power-of-two blocks and two additional communication steps are used, one immediately after the intrablock reduce-scatter and one before the intrablock allgather. Non-power-of-two cases have some degree of load imbalance compared to power-of-two, though in our runs we did not see significant performance degradation.
+
+为了支持非二次幂的服务器，我们使用了二进制块算法[30]。这是对分/加倍算法的通用版本，其中服务器被划分为两个幂块，并且使用两个额外的通信步骤，一个在intrablock reduce-scatter之后，一个在intrablock allgather之前。与二次幂相比，非二次幂的情况具有一定程度的负载不平衡，但在我们的运行中，我们没有看到显着的性能下降。
+### 4.2. Software
+The allreduce algorithms described are implemented in Gloo, a library for collective communication. It supports multiple communication contexts, which means no additional synchronization is needed to execute multiple allreduce instances in parallel. Local reduction and broadcast(described as phases (1) and (3)) are pipelined with interserver allreduce where possible.
+
+描述的allreduce算法在Gloo中实现，Gloo是一个用于集体通信的库。它支持多个通信上下文，这意味着不需要额外的同步来并行执行多个allreduce实例。局部缩减和广播（描述为阶段（1）和（3））在可能的情况下使用交叉点allreduce进行流水线操作。
+
+Caffe2 supports multi-threaded execution of the compute graph that represents a training iteration. Whenever there is no data dependency between subgraphs, multiple threads can execute those subgraphs in parallel. Applying this to backprop, local gradients can be computed in sequence, without dealing with allreduce or weight updates. This means that during backprop, the set of runnable subgraphs may grow faster than we can execute them. For subgraphs that contain an allreduce run, all servers must choose to execute the same subgraph from the set of runnable subgraphs. Otherwise, we risk distributed deadlock where servers are attempting to execute non-intersecting sets of subgraphs. With allreduce being a collective operation, servers would time out waiting. To ensure correct execution we impose a partial order on these subgraphs. This is implemented using a cyclical control input, where completion of the n-th allreduce unblocks execution of the (n + c)-th allreduce, with c being the maximum number of concurrent allreduce runs. Note that this number should be chosen to be lower than the number of threads used to execute the full compute graph.
+
+Caffe2支持表示训练迭代的计算图的多线程执行。只要子图之间没有数据依赖关系，多个线程就可以并行执行这些子图。将此应用于backprop，可以按顺序计算局部梯度，而无需处理allreduce或权重更新。这意味着在backprop期间，可运行子图集的增长速度可能比我们执行它们的速度快。对于包含allreduce运行的子图，所有服务器必须选择从runnable子图集中执行相同的子图。否则，我们冒着分布式死锁的风险，其中服务器试图执行非交叉的子图集。由于allreduce是一个集体操作，服务器会超时等待。为确保正确执行，我们对这些子图施加了部分订单。这是使用循环控制输入实现的，其中第n个allreduce的完成解除阻塞第（n + c）个allreduce的执行，其中c是并发allreduce运行的最大数量。请注意，此数字应选择为低于用于执行完整计算图形的线程数。
+
+### 4.3. Hardware
+We used Facebook’s Big Basin [24] GPU servers for our experiments. Each server contains 8 NVIDIA Tesla P100 GPUs that are interconnected with NVIDIA NVLink. For local storage, each server has 3.2TB of NVMe SSDs. For network connectivity, the servers have a Mellanox ConnectX-4 50Gbit Ethernet network card and are connected to Wedge100 [1] Ethernet switches.
+
+我们使用Facebook的Big Basin [24] GPU服务器进行实验。每台服务器包含8个与NVIDIA NVLink互连的NVIDIA Tesla P100 GPU。对于本地存储，每台服务器都有3.2TB的NVMe SSD。对于网络连接，服务器具有Mellanox ConnectX-4 50Gbit以太网网卡，并连接到Wedge100 [1]以太网交换机。
+
+We have found 50Gbit of network bandwidth sufficient for distributed synchronous SGD for ResNet-50, per the following analysis. ResNet-50 has approximately 25 million parameters. This means the total size of parameters is 25 · 10^6 · sizeof(float) = 100MB. Backprop for ResNet-50 on a single NVIDIA Tesla P100 GPU takes 120 ms. Given that allreduce requires ∼2× bytes on the network compared to the value it operates on, this leads to a peak bandwidth requirement of 200MB/0.125s = 1600MB/s, or 12.8 Gbit/s, not taking into account communication overhead. When we add a smudge factor for network overhead, we reach a peak bandwidth requirement for ResNet-50 of ∼15 Gbit/s. 
+As this peak bandwidth requirement only holds during backprop, the network is free to be used for different tasks that are less latency sensitive then aggregation (e.g. reading data or saving network snapshots) during the forward pass.
+
+根据以下分析，我们已经发现50Gbit的网络带宽足以用于ResNet-50的分布式同步SGD。ResNet-50有大约2500万个参数。这意味着参数的总大小为25·10^6·sizeof（float）= 100MB。在单个NVIDIA Tesla P100 GPU上用于ResNet-50的Backprop需要120 ms。鉴于allreduce在网络上需要~2×字节与其运行的值相比，这导致峰值带宽要求为200MB/0.125s = 1600MB/s，或12.8Gbit/s，而不考虑通信开销。当我们为网络开销添加污迹因子时，我们达到了~15 Gbit/s的ResNet-50的峰值带宽要求。由于此峰值带宽要求仅在反向提升期间保持，因此网络可以自由地用于在前向传递期间对聚合（例如，读取数据或保存网络快照）具有较小延迟敏感性的不同任务。
+
+## 5,Main Results and Analysis
+Our main result is that we can train ResNet-50 [16] on ImageNet [33] using 256 workers in one hour, while matching the accuracy of small minibatch training. Applying the linear scaling rule along with a warmup strategy allows us to seamlessly scale between small and large minibatches (up to 8k images) without tuning additional hyper-parameters or impacting accuracy. In the following subsections we: (1) describe experimental settings, (2) establish the effectiveness of large minibatch training, (3) perform a deeper experimental analysis, (4) show our findings generalize to object detection/segmentation, and (5) provide timings.
+
+我们的主要结果是我们可以在一小时内使用256名工人在ImageNet [33]上训练ResNet-50 [16]，同时匹配小型小批量培训的准确性。 应用线性缩放规则以及预热策略，我们可以在小型和大型小型机之间无缝扩展（最多8k图像），而无需调整额外的超参数或影响精度。 在以下小节中我们：（1）描述实验设置，（2）建立大型迷你训练的有效性，（3）进行更深入的实验分析，（4）显示我们的研究结果推广到物体检测/分割，以及（5） 提供时间安排。
+### 5.1. Experimental Settings
+The 1000-way ImageNet classification task [33] serves as our main experimental benchmark. Models are trained on the ∼1.28 million training images and evaluated by top1 error on the 50,000 validation images. 
+
+1000路ImageNet分类任务[33]是我们的主要实验基准。 模型在~228万个训练图像上进行训练，并通过50,000个验证图像上的top1误差进行评估。
+
+We use the ResNet-50 [16] variant from [12], noting that the stride-2 convolutions are on 3×3 layers instead of on 1×1 layers as in [16]. We use Nesterov momentum [29] with m of 0.9 following [12] but note that standard momentum as was used in [16] is equally effective. We use a weight decay λ of 0.0001 and following [16] we do not apply weight decay on the learnable BN coefficients (namely, γ and β in [19]). In order to keep the training objective fixed, which depends on the BN batch size n as described in §2.3, we use n = 32 throughout, regardless of the overall minibatch size. As in [12], we compute the BN statistics using running average (with momentum 0.9).
+
+我们使用来自[12]的ResNet-50 [16]变体，注意到步幅-2卷绕在3×3层而不是在1×1层，如[16]。 我们使用Nesterov动量[29]，其中m为0.9 [12]，但请注意[16]中使用的标准动量同样有效。 我们使用0.0001的权重衰减λ，并且在[16]之后我们不对可学习的BN系数（即[19]中的γ和β）应用权重衰减。 为了保持培训目标的固定，这取决于§2.3中描述的BN批量大小n，我们始终使用n = 32，无论整体小批量大小如何。 如[12]所示，我们使用运行平均值（动量为0.9）计算BN统计量。
+
+All models are trained for 90 epochs regardless of minibatch sizes. We apply the linear scaling rule from §2.1 and use a learning rate of η = 0.1 · (kn/256) that is linear in the minibatch size kn. With k = 8 workers (GPUs) and n = 32 samples per worker, η = 0.1 as in [16]. We call this number( 0.1 · (kn/256) ) the reference learning rate, and reduce it by 1/10 at the 30-th, 60-th, and 80-th epoch, similar to [16].
+
+无论小批量大小如何，所有型号都经过90个时期的培训。我们应用第2.1节中的线性缩放规则，并使用在小批量大小kn中线性的学习率η= 0.1·（kn / 256）。当k = 8个工人（GPU）和每个工人n = 32个样本时，η= 0.1，如[16]中所示。我们将这个数字（0.1·（kn / 256））称为参考学习率，并在第30,60和80周时将其减少1/10，类似于[16]。
+
+We adopt the initialization of [15] for all convolutional layers. The 1000-way fully-connected layer is initialized by drawing weights from a zero-mean Gaussian with standard deviation of 0.01. We have found that although SGD with a small minibatch is not sensitive to initialization due to BN, this is not the case for a substantially large minibatch. Additionally we require an appropriate warmup strategy to avoid optimization difficulties in early training. 
 
 
+我们对所有卷积层采用[15]的初始化。通过从标准偏差为0.01的零均值高斯绘制权重来初始化1000路全连接层。我们发现虽然带有小型小批量的SGD对BN的初始化不敏感，但对于大型小型小批量来说情况并非如此。此外，我们需要适当的预热策略，以避免早期训练中的优化困难。
+
+For BN layers, the learnable scaling coefficient γ is initialized to be 1, except for each residual block’s last BN where γ is initialized to be 0. Setting γ = 0 in the last BN of each residual block causes the forward/backward signal initially to propagate through the identity shortcut of ResNets, which we found to ease optimization at the start of training. This initialization improves all models but is particularly helpful for large minibatch training as we will show.
+
+对于BN层，可学习的缩放系数γ被初始化为1，除了每个残余块的最后一个BN，其中γ被初始化为0.在每个残余块的最后一个BN中设置γ= 0导致前向/后向信号最初为通过ResNets的身份快捷方式传播，我们发现在训练开始时可以简化优化。这种初始化改进了所有模型，但对我们将展示的大型小批量培训特别有用。
+
+We use scale and aspect ratio data augmentation [36] as in [12]. The network input image is a 224×224 pixel random crop from an augmented image or its horizontal flip. The input image is normalized by the per-color mean and standard deviation, as in [12].
+
+我们使用比例和宽高比数据增加[36]，如[12]。网络输入图像是来自增强图像或其水平翻转的224×224像素随机裁剪。输入图像通过每色平均值和标准偏差归一化，如[12]中所示。
+
+**Handling random variation**. As models are subject to random variation in training, we compute a model’s error rate as the median error of the final 5 epochs. Moreover, we report the mean and standard deviation (std) of the error from 5 independent runs. This gives us more confidence in our results and also provides a measure of model stability. The random variation of ImageNet models has generally not been reported in previous work (largely due to resource limitations). We emphasize that ignoring random variation may cause unreliable conclusions, especially if results are from a single trial, or the best of many.
+
+**处理随机变化**。由于模型在训练中受到随机变化的影响，我们将模型的误差率计算为最后5个时期的中值误差。此外，我们报告了5次独立运行的误差的平均值和标准差（std）。这使我们对结果更有信心，并且还提供了模型稳定性的度量。 ImageNet模型的随机变化在以前的工作中一般没有报道（主要是由于资源限制）。我们强调忽略随机变异可能会导致不可靠的结论，特别是如果结果来自单个试验，或者最好的结果。
+
+**Baseline**. Under these settings, we establish a ResNet-50 baseline using k = 8 (8 GPUs in one server) and n = 32 images per worker (minibatch size of kn = 256), as in [16]. Our baseline has a top-1 validation error of 23.60% ±0.12. As a reference, ResNet-50 from fb.resnet.torch [12] has 24.01% error, and that of the original ResNet paper [16] has 24.7% under weaker data augmentation.
+
+**基线**。在这些设置下，我们使用k = 8（一台服务器中的8个GPU）和每个工作者n = 32个图像（kn = 256的小批量大小）建立ResNet-50基线，如[16]中所述。我们的基线具有23.60％±0.12的前1验证误差。作为参考，来自fb.resnet.torch [12]的ResNet-50有24.01％的错误，而最初的ResNet论文[16]的数据增加较弱，有24.7％。
+
+### 5.2. Optimization or Generalization Issues?
+We establish our main results on large minibatch training by exploring optimization and generalization behaviors. We will demonstrate that with a proper warmup strategy, large minibatch SGD can both match the training curves of small minibatch SGD and also match the validation error. In other words, in our experiments both optimization and generalization of large minibatch training matches that of small minibatch training. Moreover, in §5.4 we will show that these models exhibit good generalization behavior to the object detection/segmentation transfer tasks, matching the transfer quality of small minibatch models.
+
+我们通过探索优化和泛化行为，在大型小批量培训上建立我们的主要成果。我们将证明，通过适当的预热策略，大型小批量SGD既可以匹配小批量SGD的训练曲线，也可以匹配验证错误。换句话说，在我们的实验中，大型小批量培训的优化和概括与小型小批量培训相匹配。此外，在§5.4中，我们将展示这些模型对物体检测/分割传递任务表现出良好的泛化行为，与小型小批量模型的传递质量相匹配。
+
+For the following results, we use k = 256 and n = 32, which results in a minibatch size kn = 8k (we use ‘1k’ to denote 1024). As discussed, our baseline has a minibatch size of kn = 256 and a reference learning rate of η = 0.1. Applying the linear scaling rule gives η = 3.2 as the reference learning rate for our large minibatch runs. We test three warmup strategies as discussed in §2.2: no warmup, constant warmup with η = 0.1 for 5 epochs, and gradual warmup which starts with η = 0.1 and is linearly increased to η = 3.2 over 5 epochs. All models are trained from scratch and all other hyper-parameters are kept fixed. We emphasize that while better results for any particular minibatch size could be obtained by optimizing hyper-parameters for that case; our goal is to match errors across minibatch sizes by using a general strategy that avoids hyper-parameter tuning for each minibatch size.
+
+对于以下结果，我们使用k = 256和n = 32，这导致小批量大小kn = 8k（我们使用'1k'来表示1024）。如上所述，我们的基线的小批量大小为kn = 256，参考学习率为η= 0.1。应用线性缩放规则得到η= 3.2作为我们的大型小批量运行的参考学习率。我们测试了§2.2中讨论的三种预热策略：没有预热，恒定预热，η= 0.1，对于5个时期，逐渐预热，以η= 0.1开始，并在5个时期内线性增加到η= 3.2。所有模型都从头开始训练，所有其他超参数都保持固定。我们强调，通过优化该案例的超参数，可以获得任何特定小批量大小的更好结果;我们的目标是通过使用避免每个小批量大小的超参数调整的一般策略来匹配小批量大小的错误。
+
+**Training error**. Training curves are shown in Figure 2. With no warmup (2a), the training curve for large minibatch of kn = 8k is inferior to training with a small minibatch of kn = 256 across all epochs. A constant warmup strategy(2b) actually degrades results: although the small constant learning rate can decrease error during warmup, the error spikes immediately after and training never fully recovers.
+
+**训练错误**。训练曲线如图2所示。在没有预热（2a）的情况下，kn = 8k的大型小批量训练曲线不及在所有时期内使用kn = 256的小型小批量训练。恒定的预热策略（2b）实际上会降低结果：虽然小的恒定学习速率可以减少预热期间的错误，但是错误会在之后立即出现，并且训练永远不会完全恢复。
+
+Our main result is that with gradual warmup, large minibatch training error matches the baseline training curve obtained with small minibatches, see Figure 2c. Although the large minibatch curve starts higher due to the low η in the warmup phase, it catches up shortly thereafter. After about 20 epochs, the small and large minibatch training curves match closely. The comparison between no warmup and gradual warmup suggests that large minibatch sizes are challenged by optimization difficulties in early training and if these difficulties are addressed, the training error and its curve can match a small minibatch baseline closely. 
+
+我们的主要结果是，随着逐渐升温，大型小批量训练误差与小型小型飞机获得的基线训练曲线相匹配，见图2c。虽然由于预热阶段的η较低，大的小批量曲线开始较高，但此后不久就会赶上。大约20个时期后，小型和大型的迷你训练曲线紧密匹配。无预热和逐渐预热之间的比较表明，大型小批量大小受到早期训练中优化困难的挑战，如果解决了这些困难，训练误差及其曲线可以与小型小批量基线紧密匹配。
+
+**Validation error**. Table 1 shows the validation error for the three warmup strategies. The no-warmup variant has ∼1.2% higher validation error than the baseline which is likely caused by the ∼2.1% increase in training error (Figure 2a), rather than overfitting or other causes for poor generalization.This argument is further supported by our gradual warmup experiment. The gradual warmup variant has a validation error within 0.14% of the baseline (noting that std of these estimates is ∼0.1%). Given that the final training errors (Figure 2c) match nicely in this case, it shows that if the optimization issues are addressed, there is no apparent generalization degradation observed using large minibatch training, even if the minibatch size goes from 256 to 8k.
+
+**验证错误**。表1显示了三种预热策略的验证错误。无预热变量的验证误差比基线高约1.2％，这可能是由训练误差增加〜2.1％引起的（图2a），而不是过度拟合或其他原因造成的泛化不足。这一论点得到了我们的进一步支持。逐步热身实验。渐进式预热变量的验证误差在基线的0.14％范围内（注意这些估计值的标准值为〜0.1％）。鉴于最终训练错误（图2c）在这种情况下很好地匹配，它表明如果解决了优化问题，即使小批量大小从256到8k，使用大型小批量训练也没有观察到明显的泛化退化。
+
+Finally, Figure 4 shows both the training and validation curves for the large minibatch training with gradual warmup. As can be seen, validation error starts to match the baseline closely after the second learning rate drop; actually, the validation curves can match earlier if BN statistics are recomputed prior to evaluating the error instead of using the running average (see also caption in Figure 4).
+
+最后，图4显示了逐步预热的大型小批量训练的训练和验证曲线。可以看出，在第二次学习率下降后，验证错误开始与基线紧密匹配;实际上，如果在评估错误之前重新计算BN统计数据而不是使用运行平均值，则验证曲线可以更早匹配（参见图4中的标题）。
+
+### 5.3. Analysis Experiments
 
 
 
