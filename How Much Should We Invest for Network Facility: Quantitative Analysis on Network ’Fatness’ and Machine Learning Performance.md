@@ -1,3 +1,5 @@
+http://commondatastorage.googleapis.com/data-dir/mlsys17duo.pdf
+
 ## How Much Should We Invest for Network Facility: Quantitative Analysis on Network ’Fatness’ and Machine Learning Performance 我们应该为网络设施投入多少：网络“肥胖”和机器学习绩效的定量分析
 
 ### Abstract
