@@ -82,7 +82,9 @@ As a Ray remote function (though the worker could also be an actor), this looks 
 ```
 import time
 
-# Note that the worker function takes a handle to the parameter server as an argument, which allows the worker task to invoke # methods on the parameter server actor. 请注意，worker函数将参数服务器的句柄作为参数，这允许worker任务调用参数服务器actor上的方法。
+# Note that the worker function takes a handle to the parameter server as an argument, which allows the worker task to invoke 
+
+# methods on the parameter server actor. 请注意，worker函数将参数服务器的句柄作为参数，这允许worker任务调用参数服务器actor上的方法。
 
 @ray.remote
 def worker(ps):
@@ -93,7 +95,8 @@ def worker(ps):
         params = ray.get(params_id)  # This is a blocking call which waits for the task to finish and gets the results.
                                      # 这是一个阻塞调用，等待任务完成并获得结果。
 
-        # Compute a gradient update. Here we just make a fake update, but in practice this would use a library like TensorFlow # and would also take in a batch of data. 计算梯度更新。这里我们只是做一个虚假的更新，但实际上这将使用像TensorFlow这样的库，并且还会接收一批# # 数据。
+        # Compute a gradient update. Here we just make a fake update, but in practice this would use a library like TensorFlow 
+        # and would also take in a batch of data. 计算梯度更新。这里我们只是做一个虚假的更新，但实际上这将使用像TensorFlow这样的库，并且还会         # 接收一批数据。
         grad = np.ones(10)
         time.sleep(0.2)  # This is a fake placeholder for some computation.这是一个假的占位符，用于某些计算。
 
